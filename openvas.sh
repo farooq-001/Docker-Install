@@ -25,7 +25,8 @@ echo "openvas installation complete:"
 draw_dragon
 
  echo "installation complete"
+ sleep 1
+ sudo docker ps -a --filter name=openvas
  sleep 2
- sudo docker ps -a
  echo "user-name: admin"
  echo "password: admin" 
