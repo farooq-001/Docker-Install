@@ -1,5 +1,6 @@
 # openvas
  sudo apt install docker.io
+ sudo docker pull mikesplain/openvas
  sudo docker run -d -p 443:443 --name openvas mikesplain/openvas
  # Function to display dragon ASCII art
 function draw_dragon {
