@@ -84,16 +84,25 @@ fi
 # Create directories and setup Guacamole
 if command_exists docker-compose; then
     echo "Setting up Guacamole with docker-compose..." | tee -a $LOG_FILE
-    
-    # Create directories
-    mkdir -p docker/guacamole | tee -a $LOG_FILE
-    cd docker/guacamole
-    
+
+    # Create directories for Guacamole setup
+    mkdir -p ~/docker/guacamole
+    cd ~/docker/guacamole
+
     # Download the docker-compose.yml file
-    curl https://gitlab.com/bmcgonag/docker_installs/-/raw/main/docker_compose_guacamole.yml \
-        -o docker-compose.yml >> $LOG_FILE 2>&1
-    
+    echo "Downloading docker-compose.yml..." | tee -a $LOG_FILE
+    curl -sSL https://gitlab.com/bmcgonag/docker_installs/-/raw/main/docker_compose_guacamole.yml -o docker-compose.yml
+
+    # Add Docker network (if not already created)
+    if ! docker network ls | grep -q my-main-net; then
+        echo "Creating Docker network 'my-main-net'..." | tee -a $LOG_FILE
+        sudo docker network create my-main-net | tee -a $LOG_FILE
+    else
+        echo "Network 'my-main-net' already exists." | tee -a $LOG_FILE
+    fi
+
     # Start the services with docker-compose
+    echo "Starting Docker Compose services..." | tee -a $LOG_FILE
     sudo docker-compose up -d | tee -a $LOG_FILE
 else
     echo "docker-compose is not installed. Please install it and try again." | tee -a $LOG_FILE
