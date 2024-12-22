@@ -147,3 +147,26 @@ fi
 if command_exists docker-compose; then
     docker-compose --version
 fi
+
+# Log file path
+LOG_FILE=~/docker-script-install.log
+
+# Check if docker-compose is installed
+if command -v docker-compose &>/dev/null; then
+    echo "docker-compose is available. Proceeding with the setup..." | tee -a $LOG_FILE
+    
+    # Create directories
+    mkdir -p docker/guacamole | tee -a $LOG_FILE
+    cd docker/guacamole
+    
+    # Download the docker-compose.yml file
+    curl https://gitlab.com/bmcgonag/docker_installs/-/raw/main/docker_compose_guacamole.yml \
+        -o docker-compose.yml >> $LOG_FILE 2>&1
+    
+    # Start the services with docker-compose
+    sudo docker-compose up -d | tee -a $LOG_FILE
+else
+    echo "docker-compose is not installed. Please install it and try again." | tee -a $LOG_FILE
+    exit 1
+fi
+
