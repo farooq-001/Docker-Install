@@ -26,6 +26,10 @@ else
     exit 1
 fi
 
+echo 'export PATH=$PATH:/usr/local/bin' >> ~/.bashrc
+source ~/.bashrc
+
+
 # Check if Docker Compose is already installed
 if command_exists docker-compose; then
     echo "Docker Compose is already installed."
