@@ -1,45 +1,62 @@
 #!/bin/bash
 
-# Detect the OS distribution
-OS=$(awk -F= '/^NAME/{print $2}' /etc/os-release | tr -d '"')
+# Function to fix the GPG error for Brave repository
+fix_brave_gpg_error() {
+    echo "Fixing GPG error for Brave repository..."
+    sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 0686B78420038257
+}
 
-echo "Detected OS: $OS"
+# Function to remove Brave repository if it's not needed
+remove_brave_repo() {
+    echo "Removing Brave repository (if not needed)..."
+    sudo add-apt-repository --remove ppa:brave-browser/stable
+    sudo apt-get update
+}
 
 # Function to install Docker on Ubuntu
-install_docker_ubuntu() {
-    echo "Installing Docker on Ubuntu..."
-    sudo apt update
-    sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
-    curl -fsSL https://get.docker.com | sudo sh
+install_docker() {
+    echo "Starting Docker installation..."
+
+    # Remove any existing Docker installations
+    sudo apt-get remove -y docker docker-engine docker.io containerd runc
+
+    # Update apt package index
+    sudo apt-get update
+
+    # Install required dependencies
+    sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+
+    # Add Docker's official GPG key
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+    # Set up the stable Docker repository
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # Update apt package index again
+    sudo apt-get update
+
+    # Install Docker Engine
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker and enable it to run at boot
     sudo systemctl enable docker
     sudo systemctl start docker
+
+    # Verify Docker installation
+    docker --version
 }
 
-# Function to install Docker on CentOS, Rocky Linux, or RHEL
-install_docker_centos_rocky_rhel() {
-    echo "Installing Docker on CentOS/Rocky Linux/RHEL..."
-    sudo yum install -y yum-utils
-    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-    sudo yum install -y docker-ce docker-ce-cli containerd.io
-    sudo systemctl enable docker
-    sudo systemctl start docker
-}
+# Main script execution
+echo "Starting installation process..."
 
-# Install Docker based on the detected OS
-case "$OS" in
-    *Ubuntu*)
-        install_docker_ubuntu
-        ;;
-    *CentOS*|*Rocky*|*RHEL*)
-        install_docker_centos_rocky_rhel
-        ;;
-    *)
-        echo "Unsupported OS: $OS"
-        exit 1
-        ;;
-esac
+# Fix Brave GPG error if necessary
+fix_brave_gpg_error
+
+# Optionally, remove Brave repository if not needed
+# Uncomment the line below if you want to remove the Brave repository
+# remove_brave_repo
+
+# Install Docker
+install_docker
 
 echo "Docker installation complete!"
-
-# Verify Docker installation
-docker --version
