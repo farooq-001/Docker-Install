@@ -12,5 +12,7 @@ curl -sSL https://raw.githubusercontent.com/farooq-001/Docker-Install/master/gua
 
 #### podman ####
 sudo dnf remove podman skopeo runc containers-common
+
 sudo dnf clean all
+
 sudo dnf install docker-ce docker-ce-cli containerd.io
