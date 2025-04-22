@@ -18,3 +18,7 @@ sudo dnf remove podman skopeo runc containers-common
 sudo dnf clean all
 
 sudo dnf install docker-ce docker-ce-cli containerd.io
+
+or
+
+sudo dnf install docker-ce docker-ce-cli containerd.io --disablerepo=forensics --disablerepo=forensics-test --disablerepo=forensics-splunk --disablerepo=forensics-sip
