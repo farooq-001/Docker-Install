@@ -1,62 +1,68 @@
 #!/bin/bash
 
-# Function to display log messages
+# Function to display messages
 log() {
-  echo -e "\e[1;33m[INFO] $1\e[0m"
+  echo -e "\e[1;32m[INFO] $1\e[0m"
 }
 
-# Ensure the script is run as root
+err() {
+  echo -e "\e[1;31m[ERROR] $1\e[0m"
+}
+
+# Check if script is run as root
 if [[ $EUID -ne 0 ]]; then
-  echo -e "\e[1;31mThis script must be run as root!\e[0m"
+  err "This script must be run as root."
   exit 1
 fi
 
-# Define Docker user (can be customized or passed as environment variable)
-DOCKER_USER="${DOCKER_USER:-$SUDO_USER}"
+log "Stopping Docker services..."
+systemctl stop docker docker.socket containerd &>/dev/null
 
-# Uninstall Docker packages (Ubuntu/Debian/CentOS/RHEL/Rocky)
-log "Attempting to remove Docker packages..."
-if command -v apt &>/dev/null; then
-  apt remove -y docker docker-engine docker.io containerd runc docker-ce docker-ce-cli docker-compose-plugin
-  apt autoremove -y
-elif command -v dnf &>/dev/null; then
+log "Disabling Docker services..."
+systemctl disable docker docker.socket containerd &>/dev/null
+
+log "Removing Docker packages..."
+if command -v dnf &>/dev/null; then
   dnf remove -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 elif command -v yum &>/dev/null; then
   yum remove -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+elif command -v apt &>/dev/null; then
+  apt purge -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  apt autoremove -y
 else
-  log "Unsupported package manager. Please remove Docker manually."
+  err "Unsupported package manager."
+  exit 1
 fi
 
-# Remove user from docker group (if user exists and is in group)
-if [[ -n "$DOCKER_USER" ]] && id "$DOCKER_USER" &>/dev/null; then
-  if id -nG "$DOCKER_USER" | grep -qw docker; then
-    log "Removing user '$DOCKER_USER' from 'docker' group..."
-    gpasswd -d "$DOCKER_USER" docker
-  else
-    log "User '$DOCKER_USER' is not in the 'docker' group."
-  fi
-else
-  log "Docker user is not set or does not exist."
-fi
-
-# Remove Docker group if empty
-if getent group docker &>/dev/null; then
-  log "Removing 'docker' group..."
-  groupdel docker
-fi
-
-# Remove Docker related files and directories
-log "Removing Docker files..."
+log "Removing Docker directories..."
 rm -rf /var/lib/docker
 rm -rf /var/lib/containerd
 rm -rf /etc/docker
-rm -f /usr/local/bin/docker-compose
-rm -f /usr/bin/docker-compose
+rm -rf /run/docker.sock
+rm -rf /etc/systemd/system/docker.service.d
+rm -f /etc/systemd/system/docker.service
+rm -f /usr/bin/docker*
+rm -f /usr/local/bin/docker*
 
-# Remove Docker repo files
-log "Cleaning up Docker repo files..."
-rm -f /etc/yum.repos.d/docker*.repo
-rm -f /etc/apt/sources.list.d/docker.list
-rm -f /usr/share/keyrings/docker-archive-keyring.gpg
+log "Removing all users from docker group..."
 
-log "Docker and related components have been successfully uninstalled!"
+# Get all users in 'docker' group
+DOCKER_USERS=$(getent group docker | awk -F: '{print $4}' | tr ',' ' ')
+
+# Remove each user from the group
+for user in $DOCKER_USERS; do
+  if id "$user" &>/dev/null; then
+    log " - Removing user '$user' from docker group..."
+    gpasswd -d "$user" docker
+  fi
+done
+
+# Delete the docker group itself
+if getent group docker &>/dev/null; then
+  log "Deleting 'docker' group..."
+  groupdel docker
+else
+  log "'docker' group does not exist."
+fi
+
+log "Docker uninstallation completed successfully."
