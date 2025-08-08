@@ -3,10 +3,6 @@ curl -sSL https://raw.githubusercontent.com/farooq-001/Docker-Install/master/uni
 
 
 # Docker-Install
-
-curl -sSL https://raw.githubusercontent.com/farooq-001/Docker-Install/master/uninstall_docker.sh | bash
-
-
 rm  -rf  /etc/yum.repos.d/pgdg-redhat-all.repo
 
 curl -sSL https://raw.githubusercontent.com/farooq-001/Docker-Install/master/docker-install-all.sh | bash
