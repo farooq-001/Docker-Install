@@ -1,125 +1,121 @@
 #!/bin/bash
 
 # -------------------------------
-# Function to display messages
+# Logger Function
 # -------------------------------
 log() {
   echo -e "\e[1;32m[INFO] $1\e[0m"
 }
-
 error() {
   echo -e "\e[1;31m[ERROR] $1\e[0m"
 }
 
 # -------------------------------
-# Ensure script is run as root
+# Root Check
 # -------------------------------
 if [[ $EUID -ne 0 ]]; then
-  error "This script must be run as root or with sudo."
+  error "This script must be run as root or with sudo privileges."
   exit 1
 fi
 
 # -------------------------------
-# Detect actual user
+# User Detection
 # -------------------------------
-DOCKER_USER="${SUDO_USER:-$USER}"
+DOCKER_USER=$(logname 2>/dev/null || echo root)
+
+# Validate user existence
+if ! id "$DOCKER_USER" &>/dev/null; then
+  error "User '$DOCKER_USER' does not exist. Please create the user before running this script."
+  exit 1
+fi
 
 # -------------------------------
-# STEP 1: Check if Docker & Docker Compose are installed
+# Docker & Docker Compose Check
 # -------------------------------
-if command -v docker &>/dev/null && (docker compose version &>/dev/null || docker-compose --version &>/dev/null); then
-  log "✅ Docker and Docker Compose are already installed."
+if command -v docker &>/dev/null && command -v docker-compose &>/dev/null; then
+  log "Docker and Docker Compose are already installed:"
   docker --version
-  if docker compose version &>/dev/null; then
-    docker compose version
-  else
-    docker-compose --version
-  fi
+  docker-compose --version
   exit 0
 else
   log "Docker or Docker Compose not found. Proceeding with installation..."
 fi
 
 # -------------------------------
-# Detect Linux Distribution
+# Dynamic Distribution Detection
 # -------------------------------
-log "Detecting Linux distribution..."
-if [[ -f /etc/os-release ]]; then
-  source /etc/os-release
-  DISTRO=$ID
-  VERSION_ID=$VERSION_ID
-else
-  DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
-fi
+DISTRO=$(awk -F= '/^ID=/{print $2}' /etc/os-release | tr -d '"')
+VERSION_ID=$(awk -F= '/^VERSION_ID=/{print $2}' /etc/os-release | tr -d '"')
+DOCKER_VERSION="docker-ce docker-ce-cli containerd.io docker-compose-plugin"
 
 # -------------------------------
-# Ubuntu / Debian Install
+# Ubuntu / Debian Installation
 # -------------------------------
 install_ubuntu_debian() {
   log "Installing Docker on Ubuntu/Debian..."
 
   apt update && apt upgrade -y
   apt remove -y docker docker-engine docker.io containerd runc
-  apt install -y apt-transport-https ca-certificates curl software-properties-common gnupg
 
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-  echo \
-    "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-    https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
     | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
   apt update
-  apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  apt install -y $DOCKER_VERSION
 
-  systemctl start docker
   systemctl enable docker
+  systemctl start docker
 
-  log "Docker version: $(docker --version)"
-  log "Docker Compose version: $(docker compose version | head -n1)"
-
-  usermod -aG docker "$DOCKER_USER"
-  log "User '$DOCKER_USER' added to docker group. Please log out and log back in or run 'newgrp docker'."
+  log "Docker installed successfully."
 }
 
 # -------------------------------
-# RHEL / Rocky / CentOS 7+ Install
+# CentOS 7 / RHEL 7+ Installation
 # -------------------------------
-install_rhel() {
-  log "Installing Docker on RHEL/Rocky/CentOS..."
+install_centos_rhel() {
+  log "Installing Docker on CentOS/RHEL/Rocky..."
 
   yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
 
-  yum install -y yum-utils device-mapper-persistent-data lvm2
+  yum install -y yum-utils device-mapper-persistent-data lvm2 curl
 
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
-  yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  yum install -y $DOCKER_VERSION
 
-  systemctl start docker
   systemctl enable docker
+  systemctl start docker
 
-  log "Docker version: $(docker --version)"
-  log "Docker Compose version: $(docker compose version | head -n1)"
-
-  usermod -aG docker "$DOCKER_USER"
-  log "User '$DOCKER_USER' added to docker group. Please log out and log back in or run 'newgrp docker'."
+  log "Docker installed successfully."
 }
 
 # -------------------------------
-# Install based on distro
+# Install Docker Based on Distro
 # -------------------------------
 case "$DISTRO" in
   ubuntu|debian)
     install_ubuntu_debian
     ;;
   centos|rhel|rocky)
-    install_rhel
+    install_centos_rhel
     ;;
   *)
-    error "Unsupported Linux distribution: $DISTRO"
+    error "Unsupported distribution: $DISTRO"
     exit 1
     ;;
 esac
 
-log "✅ Docker installation and configuration complete!"
+# -------------------------------
+# Post Install Configuration
+# -------------------------------
+log "Adding user '$DOCKER_USER' to docker group..."
+usermod -aG docker "$DOCKER_USER"
+
+log "Verifying Docker installation..."
+docker --version || error "Docker installation failed"
+docker compose version || log "Docker Compose plugin not available"
+
+log "Docker installation completed successfully for user '$DOCKER_USER'."
