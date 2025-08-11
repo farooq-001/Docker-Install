@@ -120,4 +120,5 @@ docker compose version || log "Docker Compose plugin not available"
 
 log "Docker installation completed successfully for user '$DOCKER_USER'."
 
-echo "Run on local user= sudo usermod -aG docker $USER && newgrp docker"
+usermod -aG docker "$(logname)" && newgrp docker
+
